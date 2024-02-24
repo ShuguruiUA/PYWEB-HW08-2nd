@@ -1,6 +1,4 @@
-from bson import json_util
-
-from mongoengine import connect, Document, StringField, ListField, ReferenceField, CASCADE, EmailField, BooleanField
+from mongoengine import connect, Document, StringField, EmailField, BooleanField
 
 import configparser
 
@@ -18,10 +16,7 @@ connect(host=f"""mongodb+srv://{mongo_user}:{mongodb_pass}@{domain}/{db_name}?re
 class User(Document):
     fullname = StringField(max_length=150, required=True)
     user_email = EmailField(unique=True, required=True)
-    email_sent = BooleanField()
+    user_phone = StringField(max_length=50, required=True)
+    message_sent = BooleanField(default=False)
+    pref_method = StringField()
     meta = {"collection": "users"}
-
-    def to_json(self, *args, **kwargs):
-        data = self.to_mongo(*args, **kwargs)
-        data["user"] = self.fullname
-        return json_util.dumps(data, ensure_ascii=False)

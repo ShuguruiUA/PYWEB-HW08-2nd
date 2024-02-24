@@ -7,77 +7,48 @@ from faker import Faker
 
 from models import User
 
-fake = Faker()
+fake = Faker('uk_UA')
 
+EXCHANGE = 'inform'
 
-def seed_fake_users():
-    for user in range(10):
-        user = User(
-            fullname=fake.name(),
-            user_email=fake.email(),
-            email_sent=False
-        )
-        user.save()
+credentials = pika.PlainCredentials('guest', 'guest')
+connection = pika.BlockingConnection(
+    pika.ConnectionParameters(host='localhost', port=5672, credentials=credentials))
 
+channel = connection.channel()
 
-def get_objid():
-    idx = []
-    ids = User.objects()
-    for u in ids:
-        idx.append(str(u.id))
-    return idx
+channel.exchange_declare(exchange=EXCHANGE, exchange_type='topic')
 
+channel.queue_declare(queue='email_queue')
+channel.queue_declare(queue='sms_queue')
 
 def main():
-    credentials = pika.PlainCredentials('guest', 'guest')
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', port=5672, credentials=credentials))
-
-    channel = connection.channel()
-
-    channel.exchange_declare(exchange='inform', exchange_type='topic')
     i = 0
-    for u in get_objid():
+    for data in range(15):
         i += 1
-        channel.queue_declare(queue=u, durable=False)
-        channel.queue_bind(exchange='inform', queue=u, routing_key='email')
+        method = fake.random_element(elements=('email', 'sms'))
+        user = User(fullname=fake.name(),
+                    user_email=fake.email(),
+                    user_phone=fake.phone_number(),
+                    pref_method=method)
+        user.save()
 
-        message = {
-            'id': u,
-            'payload': f'Task #{i}',
-            'date': datetime.now().isoformat()
-        }
+        payload = {'id': i, 'payload': str(user.id), 'date': datetime.now().isoformat()}
+        # payload = str(user.id)
 
-        channel.basic_publish(
-            exchange='inform',
-            routing_key='email',
-            body=json.dumps(message).encode(),
-            properties=pika.BasicProperties(
-                delivery_mode=pika.spec.TRANSIENT_DELIVERY_MODE
-            )
-        )
-        print(" [x] Sent %r" % message)
+        if method == 'email':
+            channel.basic_publish(exchange='', routing_key='email_queue',
+                                  body=json.dumps(payload).encode('utf-8'))
+            print(f'[*] Message for contact {user.fullname}: {user.user_email} has been added to email_queue')
+        else:
+            channel.basic_publish(exchange='', routing_key='sms_queue',
+                                  body=json.dumps(payload).encode('utf-8'))
+            print(f'[*] Message for contact {user.fullname}: {user.user_phone} has been added to sms_queue')
 
-        time.sleep(1)
-
+        time.sleep(0.5)
+    print(f'Operation complete at {datetime.now().isoformat()}')
     connection.close()
 
 
 if __name__ == '__main__':
-    seed_fake_users()
     main()
-
-# def main():
-#     credentials = pika.PlainCredentials('guest', 'guest')
-#     connection = pika.BlockingConnection(
-#         pika.ConnectionParameters(host='localhost', port=5672, credentials=credentials))
-#     channel = connection.channel()
-#
-#     channel.queue_declare(queue='hello_world')
-#
-#     channel.basic_publish(exchange='', routing_key='hello_world', body='Hello world!'.encode())
-#     print(" [x] Sent 'Hello World!'")
-#     connection.close()
-#
-#
-# if __name__ == '__main__':
-#     main()
