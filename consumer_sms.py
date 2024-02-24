@@ -8,6 +8,10 @@ from models import User
 
 
 def callback(ch, method, properties, body):
+    """
+    отримуємо повідомлення у бінароному вигляді JSON, декодуємо його для отримання ObjectID користувача у базі даних
+    оновлюємо користувачу інформацію про те що повідомлення було надіслано та повідомляємо що задачу в черзі виконано
+    """
     print(f" [x] Received {body}")
     ids = json.loads(body.decode('utf-8'))
     user = User.objects(id=ids['payload'], message_sent=False).first()
